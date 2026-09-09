@@ -1,0 +1,9 @@
+# SPA fallback: this is a single-page app (no server-side routing), so a
+# direct visit or refresh on any path — e.g. /AdminLogIn — must still serve
+# index.html and let the app's own client-side routing take over.
+# This doesn't change your existing build command/publish directory settings
+# configured in the Netlify dashboard; it only adds the fallback rule.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
