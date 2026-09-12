@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Modal, Image, Switch } from 'react-native';
 import {
-  upsertProduct, deleteProduct, setProductVisibility,
+  upsertProduct, deleteProduct, setProductVisibility, setProductSoldOut,
   addCategory as apiAddCategory, deleteCategory as apiDeleteCategory,
   addSubcategory as apiAddSubcategory, deleteSubcategory as apiDeleteSubcategory,
   uploadImage,
@@ -11,12 +11,13 @@ import { notifyError } from '../../utils/notify';
 const DEFAULT_CATS = ['Sarees', 'Kurtas', 'Lehengas', 'Salwar Suits'];
 
 
-const ALL_SIZES    = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Free Size'];
+const ALL_SIZES    = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5XL', '6XL', 'Free Size'];
 const DELIVERY_OPTS = ['1-2 days', '3-5 days', '5-7 days', '7-10 days'];
 const EMPTY  = {
   name: '', category: 'Sarees', subCategory: '', price: '', oldPrice: '',
   badge: '', emoji: '🥻', visible: true, images: [], description: '',
   sizes: ['S', 'M', 'L', 'XL', 'XXL'],
+  soldOut: false,
   freeShipping: true, shippingCost: '', deliveryDays: '3-5 days', codAvailable: true,
 };
 const BADGES = ['', 'SALE', 'NEW'];
@@ -107,6 +108,15 @@ export default function AdminProducts({ products, onProductsRefresh, categories,
     if (!product) return;
     try {
       await setProductVisibility(id, !product.visible);
+      await onProductsRefresh();
+    } catch (e) { notifyError(e); }
+  };
+
+  const toggleSoldOut = async (id) => {
+    const product = products.find((p) => p.id === id);
+    if (!product) return;
+    try {
+      await setProductSoldOut(id, !product.soldOut);
       await onProductsRefresh();
     } catch (e) { notifyError(e); }
   };
@@ -328,6 +338,7 @@ export default function AdminProducts({ products, onProductsRefresh, categories,
                   </View>
                 ) : null}
                 {!p.visible && <View style={styles.hiddenBadge}><Text style={styles.hiddenText}>Hidden</Text></View>}
+                {p.soldOut && <View style={styles.soldOutBadge}><Text style={styles.soldOutText}>Sold Out</Text></View>}
               </View>
               <Text style={styles.productCat}>
                 {p.category}{p.subCategory ? <Text style={styles.productSubCat}> › {p.subCategory}</Text> : null}
@@ -341,6 +352,9 @@ export default function AdminProducts({ products, onProductsRefresh, categories,
               <View style={styles.productActions}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => toggleVisible(p.id)}>
                   <Text style={styles.actionIcon}>{p.visible ? '👁️' : '🚫'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => toggleSoldOut(p.id)}>
+                  <Text style={styles.actionIcon}>{p.soldOut ? '🔴' : '🟢'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => openEdit(p)}>
                   <Text style={styles.actionIcon}>✏️</Text>
@@ -620,6 +634,20 @@ export default function AdminProducts({ products, onProductsRefresh, categories,
                 ))}
               </View>
 
+              {/* Sold Out */}
+              <View style={[styles.switchRow, { marginTop: 14, marginBottom: 0 }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switchLabel}>Sold Out</Text>
+                  <Text style={styles.switchSub}>{form.soldOut ? 'Customers cannot purchase this product' : 'Product is available for purchase'}</Text>
+                </View>
+                <Switch
+                  value={!!form.soldOut}
+                  onValueChange={(v) => setForm({ ...form, soldOut: v })}
+                  trackColor={{ false: '#ddd', true: '#e63946' }}
+                  thumbColor="#fff"
+                />
+              </View>
+
               {/* Emoji */}
               <Text style={styles.fieldLabel}>Emoji <Text style={styles.fieldLabelNote}>(shown when no photo)</Text></Text>
               <View style={styles.optionRow}>
@@ -785,6 +813,8 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 10, fontWeight: '800', color: '#C4922A' },
   hiddenBadge: { backgroundColor: '#eee', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
   hiddenText: { fontSize: 10, color: '#999', fontWeight: '700' },
+  soldOutBadge: { backgroundColor: '#fde0e0', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  soldOutText: { fontSize: 10, color: '#e63946', fontWeight: '800' },
   productCat: { fontSize: 12, color: '#aaa', marginTop: 2 },
   productSubCat: { color: '#C4922A', fontWeight: '700' },
   productPrice: { fontSize: 15, fontWeight: '800', color: '#C4922A', marginTop: 4 },

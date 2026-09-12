@@ -22,6 +22,7 @@ export default function ProductDetailScreen({ product, onBack, onAddToCart }) {
     : 0;
 
   const handleAdd = () => {
+    if (product.soldOut) return;
     if (sizes.length > 0 && !selectedSize) { setSizeError(true); return; }
     onAddToCart({ ...product, selectedSize: selectedSize || null });
     setAdded(true);
@@ -55,6 +56,11 @@ export default function ProductDetailScreen({ product, onBack, onAddToCart }) {
             <Text style={styles.mainBadgeText}>{product.badge}</Text>
           </View>
         ) : null}
+        {product.soldOut && (
+          <View style={styles.soldOutOverlay}>
+            <Text style={styles.soldOutOverlayText}>Sold Out</Text>
+          </View>
+        )}
       </TouchableOpacity>
 
       {/* Thumbnail strip */}
@@ -130,12 +136,13 @@ export default function ProductDetailScreen({ product, onBack, onAddToCart }) {
 
       {/* Add to Bag button */}
       <TouchableOpacity
-        style={[styles.addBtn, added && styles.addBtnDone]}
+        style={[styles.addBtn, added && styles.addBtnDone, product.soldOut && styles.addBtnDisabled]}
         onPress={handleAdd}
         activeOpacity={0.85}
+        disabled={product.soldOut}
       >
         <Text style={styles.addBtnText}>
-          {added ? '✓  Added to Bag!' : '🛍  Add to Bag'}
+          {product.soldOut ? '🚫  Sold Out' : added ? '✓  Added to Bag!' : '🛍  Add to Bag'}
         </Text>
       </TouchableOpacity>
 
@@ -312,7 +319,18 @@ const styles = StyleSheet.create({
     shadowColor: '#C4922A', shadowOpacity: 0.35, shadowRadius: 12, elevation: 4,
   },
   addBtnDone: { backgroundColor: '#2a9d5c' },
+  addBtnDisabled: { backgroundColor: '#ccc' },
   addBtnText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.5 },
+
+  soldOutOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(28,22,17,0.5)', alignItems: 'center', justifyContent: 'center',
+  },
+  soldOutOverlayText: {
+    color: '#fff', fontSize: 18, fontWeight: '800', letterSpacing: 1,
+    borderWidth: 1.5, borderColor: '#fff', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 6,
+    textTransform: 'uppercase',
+  },
 
   perksBox: { backgroundColor: '#F8F5F0', borderRadius: 14, padding: 16, gap: 10 },
   perksTitle: { fontSize: 12, fontWeight: '800', color: '#1C1611', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },

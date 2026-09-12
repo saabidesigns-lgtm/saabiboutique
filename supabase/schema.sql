@@ -49,6 +49,7 @@ create table public.products (
   emoji          text default '🥻',
   color          text default '#fdf3e3',
   visible        boolean not null default true,
+  sold_out       boolean not null default false,
   images         text[] not null default '{}',
   sizes          text[] not null default '{}',
   free_shipping  boolean not null default true,

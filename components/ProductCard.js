@@ -11,6 +11,7 @@ export default function ProductCard({ product, onAddToCart, onProductPress }) {
   const sizes     = product.sizes && product.sizes.length > 0 ? product.sizes : [];
 
   const handleAddToCart = () => {
+    if (product.soldOut) return;
     if (sizes.length > 0 && !selectedSize) {
       setSizeError(true);
       return;
@@ -32,6 +33,11 @@ export default function ProductCard({ product, onAddToCart, onProductPress }) {
           {product.badge ? (
             <View style={styles.badge}><Text style={styles.badgeText}>{product.badge}</Text></View>
           ) : null}
+          {product.soldOut && (
+            <View style={styles.soldOutOverlay}>
+              <Text style={styles.soldOutOverlayText}>Sold Out</Text>
+            </View>
+          )}
           {product.images && product.images.length > 1 && (
             <View style={styles.imgCount}>
               <Text style={styles.imgCountText}>📷 {product.images.length}</Text>
@@ -84,8 +90,14 @@ export default function ProductCard({ product, onAddToCart, onProductPress }) {
             {product.oldPrice ? <Text style={styles.oldPrice}>₹{product.oldPrice}</Text> : null}
             <Text style={[styles.price, isMobile && styles.priceMobile]}>₹{product.price}</Text>
           </View>
-          <TouchableOpacity style={[styles.addBtn, isMobile && styles.addBtnMobile]} onPress={handleAddToCart}>
-            <Text style={[styles.addText, isMobile && styles.addTextMobile]} numberOfLines={1}>Add to Bag</Text>
+          <TouchableOpacity
+            style={[styles.addBtn, isMobile && styles.addBtnMobile, product.soldOut && styles.addBtnDisabled]}
+            onPress={handleAddToCart}
+            disabled={product.soldOut}
+          >
+            <Text style={[styles.addText, isMobile && styles.addTextMobile]} numberOfLines={1}>
+              {product.soldOut ? 'Sold Out' : 'Add to Bag'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -116,6 +128,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#C4922A', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
   },
   badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  soldOutOverlay: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(28,22,17,0.5)', alignItems: 'center', justifyContent: 'center',
+  },
+  soldOutOverlayText: {
+    color: '#fff', fontSize: 15, fontWeight: '800', letterSpacing: 1,
+    borderWidth: 1.5, borderColor: '#fff', borderRadius: 8, paddingHorizontal: 14, paddingVertical: 5,
+    textTransform: 'uppercase',
+  },
   imgCount: {
     position: 'absolute', bottom: 8, right: 8,
     backgroundColor: 'rgba(28,22,17,0.7)', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3,
@@ -153,6 +174,7 @@ const styles = StyleSheet.create({
   priceMobile: { fontSize: 15 },
   addBtn: { backgroundColor: '#C4922A', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   addBtnMobile: { alignItems: 'center', paddingHorizontal: 6, paddingVertical: 9 },
+  addBtnDisabled: { backgroundColor: '#ccc' },
   addText: { color: '#fff', fontSize: 13, fontWeight: '600' },
   addTextMobile: { fontSize: 12 },
 });

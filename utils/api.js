@@ -21,6 +21,7 @@ const productRowToApp = (row) => ({
   emoji: row.emoji || '🥻',
   color: row.color || '#fdf3e3',
   visible: row.visible,
+  soldOut: row.sold_out || false,
   images: row.images || [],
   sizes: row.sizes || [],
   freeShipping: row.free_shipping,
@@ -40,6 +41,7 @@ const productAppToRow = (p) => ({
   emoji: p.emoji || '🥻',
   color: p.color || '#fdf3e3',
   visible: p.visible !== false,
+  sold_out: !!p.soldOut,
   images: p.images || [],
   sizes: p.sizes || [],
   free_shipping: !!p.freeShipping,
@@ -74,6 +76,11 @@ export const deleteProduct = async (id) => {
 
 export const setProductVisibility = async (id, visible) => {
   const { error } = await supabase.from('products').update({ visible }).eq('id', id);
+  if (error) throw error;
+};
+
+export const setProductSoldOut = async (id, soldOut) => {
+  const { error } = await supabase.from('products').update({ sold_out: soldOut }).eq('id', id);
   if (error) throw error;
 };
 
