@@ -11,7 +11,7 @@ const ROLES = [
 
 const roleLabel = (id) => ROLES.find((r) => r.id === id)?.label || id;
 
-export default function AdminAccess({ currentUserId }) {
+export default function AdminAccess({ currentUserId, onSelfRoleChange }) {
   const [admins, setAdmins]       = useState([]);
   const [loading, setLoading]     = useState(true);
 
@@ -65,6 +65,7 @@ export default function AdminAccess({ currentUserId }) {
     try {
       await setAdminRole(id, role);
       setAdmins((prev) => prev.map((a) => a.id === id ? { ...a, role } : a));
+      if (id === currentUserId) onSelfRoleChange && onSelfRoleChange();
     } catch (e) { notifyError(e); }
   };
 
@@ -137,35 +138,55 @@ export default function AdminAccess({ currentUserId }) {
 
       {/* Current admins */}
       <Text style={styles.sectionTitle}>Current Admins ({admins.length})</Text>
-      {admins.map((a) => (
-        <View key={a.id} style={styles.adminCard}>
-          <View style={styles.adminInfo}>
-            <Text style={styles.adminName}>{a.name}</Text>
-            <Text style={styles.adminEmail}>{a.email}</Text>
-            <Text style={styles.adminJoined}>Since {a.joined}</Text>
-          </View>
+      {(() => {
+        const superAdminCount = admins.filter((x) => x.role === 'super_admin').length;
+        return admins.map((a) => {
+          const isLastSuperAdmin = a.role === 'super_admin' && superAdminCount <= 1;
+          return (
+            <View key={a.id} style={styles.adminCard}>
+              <View style={styles.adminInfo}>
+                <Text style={styles.adminName}>{a.name}</Text>
+                <Text style={styles.adminEmail}>{a.email}</Text>
+                <Text style={styles.adminJoined}>Since {a.joined}</Text>
+              </View>
 
-          <View style={styles.roleRow}>
-            {ROLES.map((r) => (
-              <TouchableOpacity
-                key={r.id}
-                style={[styles.roleChip, a.role === r.id && styles.roleChipActive]}
-                onPress={() => handleChangeRole(a.id, r.id)}
-              >
-                <Text style={[styles.roleChipText, a.role === r.id && styles.roleChipTextActive]}>{r.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+              <View style={styles.roleRow}>
+                {ROLES.map((r) => {
+                  const locked = isLastSuperAdmin && r.id !== 'super_admin';
+                  return (
+                    <TouchableOpacity
+                      key={r.id}
+                      style={[styles.roleChip, a.role === r.id && styles.roleChipActive, locked && styles.roleChipDisabled]}
+                      disabled={locked}
+                      onPress={() => handleChangeRole(a.id, r.id)}
+                    >
+                      <Text style={[styles.roleChipText, a.role === r.id && styles.roleChipTextActive]}>{r.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
 
-          {a.id !== currentUserId ? (
-            <TouchableOpacity style={styles.revokeBtn} onPress={() => handleRevoke(a.id)}>
-              <Text style={styles.revokeBtnText}>Revoke Access</Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles.selfNote}>This is your account</Text>
-          )}
-        </View>
-      ))}
+              {isLastSuperAdmin && (
+                <Text style={styles.lastSuperAdminNote}>
+                  ⚠️ Only super admin — promote another account to super admin first to change this.
+                </Text>
+              )}
+
+              {a.id !== currentUserId ? (
+                <TouchableOpacity
+                  style={[styles.revokeBtn, isLastSuperAdmin && styles.revokeBtnDisabled]}
+                  disabled={isLastSuperAdmin}
+                  onPress={() => handleRevoke(a.id)}
+                >
+                  <Text style={styles.revokeBtnText}>Revoke Access</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.selfNote}>This is your account</Text>
+              )}
+            </View>
+          );
+        });
+      })()}
     </ScrollView>
   );
 }
@@ -203,8 +224,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#fff',
   },
   roleChipActive: { backgroundColor: '#1C1611', borderColor: '#1C1611' },
+  roleChipDisabled: { opacity: 0.4 },
   roleChipText: { fontSize: 13, color: '#666', fontWeight: '600' },
   roleChipTextActive: { color: '#C4922A', fontWeight: '800' },
+  lastSuperAdminNote: { fontSize: 12, color: '#C4922A', fontWeight: '600', marginBottom: 12 },
   grantBtn: { backgroundColor: '#C4922A', paddingVertical: 13, borderRadius: 20, alignItems: 'center' },
   grantBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   sectionTitle: { fontSize: 15, fontWeight: '800', color: '#1C1611', marginBottom: 12 },
@@ -217,6 +240,7 @@ const styles = StyleSheet.create({
   adminEmail: { fontSize: 13, color: '#666' },
   adminJoined: { fontSize: 11, color: '#aaa', marginTop: 2 },
   revokeBtn: { borderWidth: 1, borderColor: '#e63946', paddingVertical: 10, borderRadius: 20, alignItems: 'center' },
+  revokeBtnDisabled: { opacity: 0.4 },
   revokeBtnText: { color: '#e63946', fontWeight: '700', fontSize: 13 },
   selfNote: { fontSize: 12, color: '#aaa', fontStyle: 'italic', textAlign: 'center' },
 });

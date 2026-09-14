@@ -11,7 +11,7 @@ import AdminDiscounts from './AdminDiscounts';
 import AdminAccess from './AdminAccess';
 import { getCategoriesWithSubcats } from '../../utils/api';
 
-export default function AdminPanel({ products, onProductsRefresh, homeContent, onHomeContentChange, pageContent, onPageContentChange, onAdminLogout, onGoToStore, role, adminId }) {
+export default function AdminPanel({ products, onProductsRefresh, homeContent, onHomeContentChange, pageContent, onPageContentChange, onAdminLogout, onGoToStore, role, adminId, onSelfRoleChange }) {
   const [section, setSection]       = useState('Dashboard');
   const canManage    = role === 'super_admin' || role === 'manager';
   const isSuperAdmin = role === 'super_admin';
@@ -53,7 +53,7 @@ export default function AdminPanel({ products, onProductsRefresh, homeContent, o
       case 'Orders':     return <AdminOrders canManage={canManage} />;
       case 'Customers':  return <AdminCustomers canManage={canManage} />;
       case 'Discounts':  return isSuperAdmin ? <AdminDiscounts /> : <AdminDashboard products={products} />;
-      case 'Admins':     return isSuperAdmin ? <AdminAccess currentUserId={adminId} /> : <AdminDashboard products={products} />;
+      case 'Admins':     return isSuperAdmin ? <AdminAccess currentUserId={adminId} onSelfRoleChange={onSelfRoleChange} /> : <AdminDashboard products={products} />;
       default:           return <AdminDashboard products={products} />;
     }
   };

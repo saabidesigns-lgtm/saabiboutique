@@ -202,9 +202,25 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  target_current_role text;
+  remaining_super_admins int;
 begin
   if not public.is_super_admin() then
     raise exception 'Only super admins can change admin roles';
+  end if;
+
+  select role into target_current_role from public.profiles where id = target_user_id;
+
+  -- Refuse to demote/revoke the last super admin — otherwise nobody could
+  -- promote anyone back, since only a super admin may call this function.
+  if target_current_role = 'super_admin' and new_role is distinct from 'super_admin' then
+    select count(*) into remaining_super_admins
+      from public.profiles
+      where role = 'super_admin' and is_admin = true and id <> target_user_id;
+    if remaining_super_admins = 0 then
+      raise exception 'Cannot remove the last super admin — promote another account to super admin first';
+    end if;
   end if;
 
   if new_role = 'none' then

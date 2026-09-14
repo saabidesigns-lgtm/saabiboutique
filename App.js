@@ -165,6 +165,14 @@ export default function App() {
     goTo('Home');
   };
 
+  const refreshOwnAdminRole = async () => {
+    if (!adminId) return;
+    try {
+      const profile = await getProfile(adminId);
+      if (profile.is_admin) setAdminRole(profile.role || 'staff');
+    } catch {}
+  };
+
   const handleAdminLogin  = () => setIsAdmin(true);
   const handleAdminLogout = async () => {
     try { await signOut(); } catch {}
@@ -207,6 +215,7 @@ export default function App() {
           onGoToStore={handleGoToStore}
           role={adminRole}
           adminId={adminId}
+          onSelfRoleChange={refreshOwnAdminRole}
         />
       </View>
     );
@@ -233,7 +242,7 @@ export default function App() {
         ) : null;
       case 'About':    return <AboutScreen content={pageContent.about} />;
       case 'Contact':  return <ContactScreen content={pageContent.contact} storeSettings={pageContent.store} />;
-      case 'Bag':      return <BagScreen cart={cart} onRemove={removeFromCart} onNavigate={handleNavigate} />;
+      case 'Bag':      return <BagScreen cart={cart} onRemove={removeFromCart} onNavigate={handleNavigate} storeSettings={pageContent.store} />;
       case 'Login':    return (
         <LoginScreen
           onLogin={handleLogin}

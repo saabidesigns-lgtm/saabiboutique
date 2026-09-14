@@ -119,7 +119,8 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
   const freeThreshold = parseFloat(storeSettings.freeShippingThreshold || 999);
   const shipCost      = parseFloat(storeSettings.shippingCost || 99);
   const subtotal      = cart.reduce((sum, item) => sum + parseFloat(item.price), 0);
-  const shipping      = subtotal >= freeThreshold ? 0 : shipCost;
+  const allItemsFreeShipping = cart.length > 0 && cart.every((item) => item.freeShipping);
+  const shipping      = (subtotal >= freeThreshold || allItemsFreeShipping) ? 0 : shipCost;
   const total         = (subtotal + shipping).toFixed(0);
 
   const upiVpa      = checkoutSettings.upiVpa          || 'saabiboutique@ybl';
@@ -391,12 +392,14 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
                       <Text style={styles.upiHintText}>Open PhonePe → Scan QR → Confirm payment</Text>
                     </View>
                     <TouchableOpacity
-                      style={styles.qrPaidBtn}
-                      onPress={() => { setUpiVerified(true); }}
+                      style={[styles.qrPaidBtn, placing && { opacity: 0.7 }]}
+                      disabled={placing}
+                      onPress={() => { setUpiVerified(true); handlePlaceOrder(); }}
                     >
-                      <Text style={styles.qrPaidBtnText}>
-                        {upiVerified ? '✓ Payment Confirmed' : 'I have completed the payment'}
-                      </Text>
+                      {placing
+                        ? <ActivityIndicator size="small" color="#fff" />
+                        : <Text style={styles.qrPaidBtnText}>I have completed the payment → Place Order</Text>
+                      }
                     </TouchableOpacity>
                   </View>
                 )}
@@ -416,15 +419,19 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
                         keyboardType="email-address"
                       />
                       <TouchableOpacity
-                        style={[styles.verifyBtn, upiVerifying && { opacity: 0.6 }]}
-                        disabled={upiVerifying || !upiId}
+                        style={[styles.verifyBtn, (upiVerifying || placing) && { opacity: 0.6 }]}
+                        disabled={upiVerifying || placing || !upiId}
                         onPress={() => {
                           if (!upiId.includes('@')) { setUpiError('Enter a valid UPI ID (e.g. name@ybl)'); return; }
                           setUpiVerifying(true);
-                          setTimeout(() => { setUpiVerifying(false); setUpiVerified(true); }, 1500);
+                          setTimeout(() => {
+                            setUpiVerifying(false);
+                            setUpiVerified(true);
+                            handlePlaceOrder();
+                          }, 1500);
                         }}
                       >
-                        {upiVerifying
+                        {(upiVerifying || placing)
                           ? <ActivityIndicator size="small" color="#fff" />
                           : <Text style={styles.verifyBtnText}>{upiVerified ? '✓' : 'Verify'}</Text>
                         }
@@ -472,29 +479,27 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
               <Text style={styles.backBtnText}>← Back to Delivery</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.nextBtn,
-                payMethod === 'phonepe' && !upiVerified && styles.nextBtnDisabled,
-                payMethod === 'card' && !(payment.name && payment.card && payment.expiry && payment.cvv) && styles.nextBtnDisabled,
-                placing && styles.nextBtnDisabled,
-              ]}
-              disabled={placing}
-              onPress={() => {
-                if (payMethod === 'phonepe' && !upiVerified) return;
-                if (payMethod === 'card' && !(payment.name && payment.card && payment.expiry && payment.cvv)) return;
-                handlePlaceOrder();
-              }}
-            >
-              {placing ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.nextBtnText}>
-                  {payMethod === 'phonepe' ? '🟣 Pay ₹' + total + ' via PhonePe'
-                    : payMethod === 'cod' ? '💵 Place Order · Pay on Delivery'
-                    : '💳 Pay ₹' + total}
-                </Text>
-              )}
-            </TouchableOpacity>
+            {payMethod !== 'phonepe' && (
+              <TouchableOpacity
+                style={[styles.nextBtn,
+                  payMethod === 'card' && !(payment.name && payment.card && payment.expiry && payment.cvv) && styles.nextBtnDisabled,
+                  placing && styles.nextBtnDisabled,
+                ]}
+                disabled={placing}
+                onPress={() => {
+                  if (payMethod === 'card' && !(payment.name && payment.card && payment.expiry && payment.cvv)) return;
+                  handlePlaceOrder();
+                }}
+              >
+                {placing ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.nextBtnText}>
+                    {payMethod === 'cod' ? '💵 Place Order · Pay on Delivery' : '💳 Pay ₹' + total}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

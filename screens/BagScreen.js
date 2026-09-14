@@ -1,8 +1,12 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Image } from 'react-native';
 
-export default function BagScreen({ cart, onRemove, onNavigate }) {
+export default function BagScreen({ cart, onRemove, onNavigate, storeSettings = {} }) {
   const total = cart.reduce((sum, item) => sum + parseFloat(item.price), 0).toFixed(2);
+  const freeThreshold = parseFloat(storeSettings.freeShippingThreshold || 999);
+  const shipCost = parseFloat(storeSettings.shippingCost || 99);
+  const allItemsFreeShipping = cart.length > 0 && cart.every((item) => item.freeShipping);
+  const shipping = (parseFloat(total) >= freeThreshold || allItemsFreeShipping) ? 0 : shipCost;
 
   if (cart.length === 0) {
     return (
@@ -66,19 +70,19 @@ export default function BagScreen({ cart, onRemove, onNavigate }) {
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Shipping</Text>
             <Text style={[styles.summaryValue, { color: '#4CAF50' }]}>
-              {parseFloat(total) >= 999 ? 'FREE' : '₹99'}
+              {shipping === 0 ? 'FREE' : `₹${shipCost.toLocaleString('en-IN')}`}
             </Text>
           </View>
-          {parseFloat(total) < 999 && (
+          {shipping > 0 && (
             <Text style={styles.freeShippingHint}>
-              Add ₹{(999 - parseFloat(total)).toLocaleString('en-IN')} more for free shipping!
+              Add ₹{(freeThreshold - parseFloat(total)).toLocaleString('en-IN')} more for free shipping!
             </Text>
           )}
           <View style={styles.divider} />
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>
-              ₹{(parseFloat(total) + (parseFloat(total) >= 999 ? 0 : 99)).toLocaleString('en-IN')}
+              ₹{(parseFloat(total) + shipping).toLocaleString('en-IN')}
             </Text>
           </View>
           <TouchableOpacity style={styles.checkoutBtn} onPress={() => onNavigate('Checkout')}>
