@@ -220,7 +220,13 @@ export default function LoginScreen({ onLogin, onNavigate, successMessage, onCle
           <View style={styles.divLine} />
         </View>
 
-        <TouchableOpacity style={styles.guestBtn} onPress={() => onLogin({ name: 'Guest', phone: '', email: '' })}>
+        <TouchableOpacity
+          style={styles.guestBtn}
+          onPress={async () => {
+            try { await signOut(); } catch {}
+            onLogin({ name: 'Guest', phone: '', email: '' });
+          }}
+        >
           <Text style={styles.guestText}>Continue as Guest</Text>
         </TouchableOpacity>
       </View>

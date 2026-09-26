@@ -1,29 +1,39 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import QRCode from 'react-native-qrcode-svg';
-import { createOrder } from '../utils/api';
+import { createCodOrder, createRazorpayOrder, verifyRazorpayPayment } from '../utils/api';
+
+let razorpayScriptPromise = null;
+const loadRazorpayScript = () => {
+  if (Platform.OS !== 'web') return Promise.reject(new Error('Online payment is only available on the web version right now.'));
+  if (window.Razorpay) return Promise.resolve();
+  if (razorpayScriptPromise) return razorpayScriptPromise;
+  razorpayScriptPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Could not load the payment widget. Check your connection and try again.'));
+    document.body.appendChild(script);
+  });
+  return razorpayScriptPromise;
+};
 
 export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete, checkoutSettings = {}, storeSettings = {} }) {
   const [step, setStep] = useState(1);
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState('');
   const [orderId, setOrderId] = useState(null);
-  const [delivery, setDelivery] = useState({ name: '', phone: '', address: '', city: '', zip: '' });
-  const [payment, setPayment] = useState({ card: '', expiry: '', cvv: '', name: '' });
-  const [payMethod, setPayMethod] = useState('phonepe'); // 'phonepe' | 'card' | 'cod'
-  const [upiId, setUpiId] = useState('');
-  const [upiError, setUpiError] = useState('');
-  const [upiVerifying, setUpiVerifying] = useState(false);
-  const [upiVerified, setUpiVerified] = useState(false);
-  const [upiTab, setUpiTab] = useState('qr'); // 'qr' | 'id'
+  const [delivery, setDelivery] = useState({ name: '', phone: '', email: '', address: '', city: '', zip: '' });
+  const [payMethod, setPayMethod] = useState('razorpay'); // 'razorpay' | 'cod'
   const [locLoading, setLocLoading] = useState(false);
   const [locError, setLocError] = useState('');
   const [locSuccess, setLocSuccess] = useState(false);
   const [showAddressOptions, setShowAddressOptions] = useState(false);
   const [phoneError, setPhoneError] = useState('');
+  const [emailError, setEmailError] = useState('');
 
   const isValidIndianPhone = (num) => /^[6-9]\d{9}$/.test(num);
+  const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
   const handlePhoneChange = (val) => {
     const digits = val.replace(/\D/g, '').slice(0, 10);
@@ -123,48 +133,99 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
   const shipping      = (subtotal >= freeThreshold || allItemsFreeShipping) ? 0 : shipCost;
   const total         = (subtotal + shipping).toFixed(0);
 
-  const upiVpa      = checkoutSettings.upiVpa          || 'saabiboutique@ybl';
-  const upiName     = checkoutSettings.upiMerchantName  || 'Saabi Designes';
   const enableUpi   = checkoutSettings.enableUpi  !== false;
   const enableCard  = checkoutSettings.enableCard !== false;
+  const enableOnlinePay = enableUpi || enableCard;
   const enableCod   = checkoutSettings.enableCod  !== false;
   const successMsg  = checkoutSettings.successMessage || 'Your order is confirmed and will be delivered soon.';
   const headerTag   = checkoutSettings.headerTag       || '✦ SAABI DESIGNES ✦';
 
-  const handlePlaceOrder = async () => {
+  const buildCheckoutPayload = () => {
+    const itemsMap = {};
+    cart.forEach((item) => {
+      const key = `${item.name}__${item.selectedSize || ''}`;
+      if (!itemsMap[key]) {
+        itemsMap[key] = { name: item.name, price: parseFloat(item.price) || 0, qty: 0, size: item.selectedSize || null };
+      }
+      itemsMap[key].qty += 1;
+    });
+    return {
+      userId: user?.id || null,
+      customerName: delivery.name,
+      phone: '+91' + delivery.phone,
+      email: delivery.email || '',
+      address: delivery.address,
+      city: delivery.city,
+      zip: delivery.zip,
+      items: Object.values(itemsMap),
+      subtotal,
+      shipping,
+      total: parseInt(total, 10),
+    };
+  };
+
+  const handleCodOrder = async () => {
     setPlaceError('');
     setPlacing(true);
     try {
-      const itemsMap = {};
-      cart.forEach((item) => {
-        const key = `${item.name}__${item.selectedSize || ''}`;
-        if (!itemsMap[key]) {
-          itemsMap[key] = { name: item.name, price: parseFloat(item.price) || 0, qty: 0, size: item.selectedSize || null };
-        }
-        itemsMap[key].qty += 1;
-      });
-
-      const order = await createOrder({
-        userId: user?.id || null,
-        customerName: delivery.name,
-        phone: '+91' + delivery.phone,
-        address: delivery.address,
-        city: delivery.city,
-        zip: delivery.zip,
-        items: Object.values(itemsMap),
-        subtotal,
-        shipping,
-        total: parseInt(total, 10),
-        paymentMethod: payMethod,
-        paymentStatus: payMethod === 'cod' ? 'cod_pending' : 'paid_simulated',
-      });
-
+      const order = await createCodOrder(buildCheckoutPayload());
       setOrderId(order.id);
       setStep(3);
       onOrderComplete();
     } catch (e) {
       setPlaceError(e.message || 'Could not place your order. Please try again.');
     } finally {
+      setPlacing(false);
+    }
+  };
+
+  const handleRazorpayPay = async () => {
+    setPlaceError('');
+    setPlacing(true);
+    try {
+      await loadRazorpayScript();
+      const { razorpayOrderId, keyId, amount, currency } = await createRazorpayOrder(buildCheckoutPayload());
+
+      const rzp = new window.Razorpay({
+        key: keyId,
+        amount,
+        currency,
+        order_id: razorpayOrderId,
+        name: 'Saabi Designes',
+        description: 'Order Payment',
+        prefill: {
+          name: delivery.name,
+          contact: '+91' + delivery.phone,
+          email: delivery.email || undefined,
+        },
+        theme: { color: '#C4922A' },
+        handler: async (response) => {
+          try {
+            const order = await verifyRazorpayPayment({
+              razorpayOrderId: response.razorpay_order_id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+            setOrderId(order.id);
+            setStep(3);
+            onOrderComplete();
+          } catch (e) {
+            setPlaceError(e.message || 'Payment succeeded but we could not confirm your order. Please contact us with your payment ID.');
+          } finally {
+            setPlacing(false);
+          }
+        },
+        modal: {
+          ondismiss: () => setPlacing(false),
+        },
+      });
+      rzp.on('payment.failed', (resp) => {
+        setPlaceError(resp?.error?.description || 'Payment failed. Please try again.');
+        setPlacing(false);
+      });
+      rzp.open();
+    } catch (e) {
+      setPlaceError(e.message || 'Could not start payment. Please try again.');
       setPlacing(false);
     }
   };
@@ -248,6 +309,23 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
                 : null}
             </View>
             <View style={styles.fieldWrap}>
+              <Text style={styles.fieldLabel}>Email (optional)</Text>
+              <TextInput
+                style={[styles.fieldInput, emailError && styles.fieldInputError]}
+                value={delivery.email}
+                onChangeText={(v) => {
+                  setDelivery({ ...delivery, email: v });
+                  setEmailError(v && !isValidEmail(v) ? 'Enter a valid email address' : '');
+                }}
+                placeholder="you@example.com"
+                placeholderTextColor="#bbb"
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              {emailError ? <Text style={styles.locError}>{emailError}</Text> : null}
+              {!emailError && <Text style={{ fontSize: 11, color: '#999', marginTop: 4 }}>We'll send your order confirmation here.</Text>}
+            </View>
+            <View style={styles.fieldWrap}>
               <Text style={styles.fieldLabel}>Address</Text>
               {/* Location picker button */}
               <TouchableOpacity
@@ -308,8 +386,8 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.nextBtn, !(delivery.name && phoneValid && delivery.address && delivery.city) && styles.nextBtnDisabled]}
-              onPress={() => delivery.name && phoneValid && delivery.address && delivery.city && setStep(2)}
+              style={[styles.nextBtn, !(delivery.name && phoneValid && !emailError && delivery.address && delivery.city) && styles.nextBtnDisabled]}
+              onPress={() => delivery.name && phoneValid && !emailError && delivery.address && delivery.city && setStep(2)}
             >
               <Text style={styles.nextBtnText}>Continue to Payment →</Text>
             </TouchableOpacity>
@@ -323,14 +401,13 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
             {/* Payment Method Selector */}
             <View style={styles.payMethods}>
               {[
-                enableUpi  && { id: 'phonepe', label: 'PhonePe / UPI', icon: '📱', sub: 'Pay via UPI' },
-                enableCard && { id: 'card',    label: 'Card',          icon: '💳', sub: 'Credit / Debit' },
-                enableCod  && { id: 'cod',     label: 'Cash on Delivery', icon: '💵', sub: 'Pay at door' },
+                enableOnlinePay && { id: 'razorpay', label: 'Pay Online', icon: '💳', sub: 'UPI, Card, Wallet, Netbanking' },
+                enableCod       && { id: 'cod',      label: 'Cash on Delivery', icon: '💵', sub: 'Pay at door' },
               ].filter(Boolean).map((m) => (
                 <TouchableOpacity
                   key={m.id}
                   style={[styles.payMethodCard, payMethod === m.id && styles.payMethodCardActive]}
-                  onPress={() => { setPayMethod(m.id); setUpiError(''); setUpiVerified(false); }}
+                  onPress={() => setPayMethod(m.id)}
                 >
                   <Text style={styles.payMethodIcon}>{m.icon}</Text>
                   <View style={{ flex: 1 }}>
@@ -344,123 +421,12 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
               ))}
             </View>
 
-            {/* PhonePe Form */}
-            {payMethod === 'phonepe' && (
-              <View style={styles.payForm}>
-                <View style={styles.phonePeHeader}>
-                  <Text style={styles.phonePeTitle}>🟣 PhonePe UPI</Text>
-                  <Text style={styles.phonePeAmount}>₹{total}</Text>
-                </View>
-
-                {/* Tab switcher */}
-                <View style={styles.upiTabs}>
-                  <TouchableOpacity
-                    style={[styles.upiTab, upiTab === 'qr' && styles.upiTabActive]}
-                    onPress={() => setUpiTab('qr')}
-                  >
-                    <Text style={[styles.upiTabText, upiTab === 'qr' && styles.upiTabTextActive]}>📷 Scan QR Code</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.upiTab, upiTab === 'id' && styles.upiTabActive]}
-                    onPress={() => setUpiTab('id')}
-                  >
-                    <Text style={[styles.upiTabText, upiTab === 'id' && styles.upiTabTextActive]}>⌨️ Enter UPI ID</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* QR Code Tab */}
-                {upiTab === 'qr' && (
-                  <View style={styles.qrContainer}>
-                    <View style={styles.qrBox}>
-                      <QRCode
-                        value={`upi://pay?pa=${upiVpa}&pn=${encodeURIComponent(upiName)}&am=${total}&cu=INR&tn=Order%20Payment`}
-                        size={200}
-                        color="#5f259f"
-                        backgroundColor="#fff"
-                      />
-                    </View>
-                    <Text style={styles.qrTitle}>Scan with any UPI app</Text>
-                    <Text style={styles.qrAmount}>Amount: ₹{total}</Text>
-                    <View style={styles.qrApps}>
-                      {['📱 PhonePe', '🔵 GPay', '💙 Paytm', '🏦 BHIM'].map((app) => (
-                        <View key={app} style={styles.qrAppChip}>
-                          <Text style={styles.qrAppText}>{app}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    <View style={styles.upiHint}>
-                      <Text style={styles.upiHintText}>Open PhonePe → Scan QR → Confirm payment</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={[styles.qrPaidBtn, placing && { opacity: 0.7 }]}
-                      disabled={placing}
-                      onPress={() => { setUpiVerified(true); handlePlaceOrder(); }}
-                    >
-                      {placing
-                        ? <ActivityIndicator size="small" color="#fff" />
-                        : <Text style={styles.qrPaidBtnText}>I have completed the payment → Place Order</Text>
-                      }
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* UPI ID Tab */}
-                {upiTab === 'id' && (
-                  <View>
-                    <Text style={styles.fieldLabel}>Enter UPI ID</Text>
-                    <View style={styles.upiRow}>
-                      <TextInput
-                        style={[styles.fieldInput, { flex: 1 }, upiError && styles.fieldInputError]}
-                        value={upiId}
-                        onChangeText={(v) => { setUpiId(v); setUpiError(''); setUpiVerified(false); }}
-                        placeholder="yourname@ybl or 9XXXXXXX@ybl"
-                        placeholderTextColor="#bbb"
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                      />
-                      <TouchableOpacity
-                        style={[styles.verifyBtn, (upiVerifying || placing) && { opacity: 0.6 }]}
-                        disabled={upiVerifying || placing || !upiId}
-                        onPress={() => {
-                          if (!upiId.includes('@')) { setUpiError('Enter a valid UPI ID (e.g. name@ybl)'); return; }
-                          setUpiVerifying(true);
-                          setTimeout(() => {
-                            setUpiVerifying(false);
-                            setUpiVerified(true);
-                            handlePlaceOrder();
-                          }, 1500);
-                        }}
-                      >
-                        {(upiVerifying || placing)
-                          ? <ActivityIndicator size="small" color="#fff" />
-                          : <Text style={styles.verifyBtnText}>{upiVerified ? '✓' : 'Verify'}</Text>
-                        }
-                      </TouchableOpacity>
-                    </View>
-                    {upiError ? <Text style={styles.locError}>{upiError}</Text> : null}
-                    {upiVerified ? <Text style={styles.phoneSuccess}>✓ UPI ID verified successfully</Text> : null}
-                    <View style={styles.upiHint}>
-                      <Text style={styles.upiHintText}>Accepted: @ybl · @ibl · @axl · @okicici · @paytm</Text>
-                    </View>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Card Form */}
-            {payMethod === 'card' && (
-              <View style={styles.payForm}>
-                <Field label="Cardholder Name" value={payment.name} onChange={(v) => setPayment({ ...payment, name: v })} placeholder="Name on card" />
-                <Field label="Card Number" value={payment.card} onChange={(v) => setPayment({ ...payment, card: v })} placeholder="0000 0000 0000 0000" keyboardType="numeric" maxLength={19} />
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Field label="Expiry" value={payment.expiry} onChange={(v) => setPayment({ ...payment, expiry: v })} placeholder="MM/YY" keyboardType="numeric" maxLength={5} />
-                  </View>
-                  <View style={{ width: 12 }} />
-                  <View style={{ flex: 1 }}>
-                    <Field label="CVV" value={payment.cvv} onChange={(v) => setPayment({ ...payment, cvv: v })} placeholder="•••" keyboardType="numeric" maxLength={3} />
-                  </View>
-                </View>
+            {/* Online payment */}
+            {payMethod === 'razorpay' && (
+              <View style={styles.codBox}>
+                <Text style={styles.codIcon}>💳</Text>
+                <Text style={styles.codTitle}>Pay ₹{total} securely</Text>
+                <Text style={styles.codSub}>Tap "Pay Now" to open the secure payment window — pay via UPI (opens your UPI app directly), card, wallet, or netbanking.</Text>
               </View>
             )}
 
@@ -479,27 +445,19 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
               <Text style={styles.backBtnText}>← Back to Delivery</Text>
             </TouchableOpacity>
 
-            {payMethod !== 'phonepe' && (
-              <TouchableOpacity
-                style={[styles.nextBtn,
-                  payMethod === 'card' && !(payment.name && payment.card && payment.expiry && payment.cvv) && styles.nextBtnDisabled,
-                  placing && styles.nextBtnDisabled,
-                ]}
-                disabled={placing}
-                onPress={() => {
-                  if (payMethod === 'card' && !(payment.name && payment.card && payment.expiry && payment.cvv)) return;
-                  handlePlaceOrder();
-                }}
-              >
-                {placing ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.nextBtnText}>
-                    {payMethod === 'cod' ? '💵 Place Order · Pay on Delivery' : '💳 Pay ₹' + total}
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[styles.nextBtn, placing && styles.nextBtnDisabled]}
+              disabled={placing}
+              onPress={payMethod === 'cod' ? handleCodOrder : handleRazorpayPay}
+            >
+              {placing ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.nextBtnText}>
+                  {payMethod === 'cod' ? '💵 Place Order · Pay on Delivery' : '🔒 Pay ₹' + total + ' Now'}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
         )}
 
@@ -666,50 +624,6 @@ const styles = StyleSheet.create({
   },
   payRadioActive: { borderColor: '#C4922A' },
   payRadioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#C4922A' },
-  payForm: { marginBottom: 8 },
-  phonePeHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: '#f3eaff', borderRadius: 12, padding: 14, marginBottom: 16,
-  },
-  phonePeTitle: { fontSize: 16, fontWeight: '800', color: '#5f259f' },
-  phonePeAmount: { fontSize: 18, fontWeight: '900', color: '#5f259f' },
-  upiRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
-  verifyBtn: {
-    backgroundColor: '#5f259f', paddingHorizontal: 16,
-    borderRadius: 12, justifyContent: 'center', alignItems: 'center', minWidth: 70,
-  },
-  verifyBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  upiTabs: {
-    flexDirection: 'row', backgroundColor: '#f3eaff',
-    borderRadius: 12, padding: 4, marginBottom: 16, gap: 4,
-  },
-  upiTab: { flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center' },
-  upiTabActive: { backgroundColor: '#5f259f' },
-  upiTabText: { fontSize: 13, fontWeight: '600', color: '#5f259f' },
-  upiTabTextActive: { color: '#fff', fontWeight: '700' },
-  qrContainer: { alignItems: 'center', paddingVertical: 8 },
-  qrBox: {
-    padding: 16, backgroundColor: '#fff',
-    borderRadius: 16, borderWidth: 2, borderColor: '#e9d5ff',
-    shadowColor: '#5f259f', shadowOpacity: 0.12, shadowRadius: 12, elevation: 4,
-    marginBottom: 16,
-  },
-  qrTitle: { fontSize: 15, fontWeight: '700', color: '#1C1611', marginBottom: 4 },
-  qrAmount: { fontSize: 22, fontWeight: '900', color: '#5f259f', marginBottom: 16 },
-  qrApps: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 12 },
-  qrAppChip: {
-    backgroundColor: '#f3eaff', borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderWidth: 1, borderColor: '#e9d5ff',
-  },
-  qrAppText: { fontSize: 12, color: '#5f259f', fontWeight: '600' },
-  qrPaidBtn: {
-    marginTop: 12, backgroundColor: '#5f259f',
-    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24,
-  },
-  qrPaidBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  upiHint: { backgroundColor: '#f9f5ff', borderRadius: 8, padding: 10, marginTop: 8 },
-  upiHintText: { fontSize: 11, color: '#888', textAlign: 'center' },
   codBox: {
     alignItems: 'center', backgroundColor: '#f5f9f0',
     borderRadius: 14, padding: 24, marginBottom: 8,

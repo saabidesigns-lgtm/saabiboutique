@@ -11,8 +11,6 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.85.3",
-    "react-native-qrcode-svg": "^6.3.21",
-    "react-native-svg": "15.15.4",
     "react-native-web": "^0.21.2"
   },
   "scripts": {
@@ -21,5 +19,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@types/react": "~19.2.14",
+    "typescript": "~6.0.3"
+  }
 }

@@ -172,32 +172,36 @@ export const updatePageContent = async (content) => {
 };
 
 // ── Orders ───────────────────────────────────────────────────────────────
+//
+// All order creation goes through Edge Functions using the service role,
+// never a direct client insert — sidesteps guest/RLS edge cases entirely
+// and lets the payment functions verify Razorpay signatures server-side.
 
-export const createOrder = async ({
-  userId, customerName, phone, address, city, zip,
-  items, subtotal, shipping, total, paymentMethod, paymentStatus,
-}) => {
-  const { data, error } = await supabase
-    .from('orders')
-    .insert({
-      user_id: userId || null,
-      customer_name: customerName,
-      phone,
-      address,
-      city,
-      zip: zip || '',
-      items,
-      subtotal,
-      shipping,
-      total,
-      payment_method: paymentMethod,
-      payment_status: paymentStatus,
-      status: 'Pending',
-    })
-    .select()
-    .single();
+export const createCodOrder = async (checkoutDetails) => {
+  const { data, error } = await supabase.functions.invoke('create-cod-order', {
+    body: checkoutDetails,
+  });
   if (error) throw error;
-  return data;
+  if (data?.error) throw new Error(data.error);
+  return data.order;
+};
+
+export const createRazorpayOrder = async (checkoutDetails) => {
+  const { data, error } = await supabase.functions.invoke('create-razorpay-order', {
+    body: checkoutDetails,
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data; // { razorpayOrderId, keyId, amount, currency }
+};
+
+export const verifyRazorpayPayment = async ({ razorpayOrderId, razorpayPaymentId, razorpaySignature }) => {
+  const { data, error } = await supabase.functions.invoke('verify-razorpay-payment', {
+    body: { razorpayOrderId, razorpayPaymentId, razorpaySignature },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data.order;
 };
 
 export const getOrders = async () => {
