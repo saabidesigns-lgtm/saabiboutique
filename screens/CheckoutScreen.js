@@ -197,14 +197,17 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
   };
 
   const handleRazorpayPay = async () => {
+    console.log('[checkout-debug] handleRazorpayPay invoked', { cartLength: cart.length, total });
     setPlaceError('');
     setPlacing(true);
     try {
       await loadRazorpayScript();
       const { razorpayOrderId, keyId, amount, currency } = await createRazorpayOrder(buildCheckoutPayload());
+      console.log('[checkout-debug] razorpay order created', { razorpayOrderId, cartLength: cart.length, total });
 
       let resolved = false;
-      const finalizeSuccess = (id) => {
+      const finalizeSuccess = (id, via) => {
+        console.log('[checkout-debug] finalizeSuccess', { via, id, cartLength: cart.length, total, resolvedAlready: resolved });
         if (resolved) return;
         resolved = true;
         setPlaceError('');
@@ -235,7 +238,7 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
             });
-            finalizeSuccess(order.id);
+            finalizeSuccess(order.id, 'handler');
           } catch (e) {
             if (!resolved) { resolved = true; setPlaceError(e.message || 'Payment succeeded but we could not confirm your order. Please contact us with your payment ID.'); setPlacing(false); }
           }
@@ -250,7 +253,7 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
             if (resolved) return;
             try {
               const result = await checkPaymentStatus(razorpayOrderId);
-              if (result.status === 'paid') { finalizeSuccess(result.orderId); return; }
+              if (result.status === 'paid') { finalizeSuccess(result.orderId, 'ondismiss'); return; }
             } catch {}
             if (!resolved) setPlacing(false);
           },
@@ -261,7 +264,7 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
         setPlaceError('Confirming your payment status, please wait...');
         const result = await pollForPaidStatus(razorpayOrderId);
         if (result && result.status === 'paid') {
-          finalizeSuccess(result.orderId);
+          finalizeSuccess(result.orderId, 'payment.failed-poll');
         } else if (!resolved) {
           resolved = true;
           setPlaceError(resp?.error?.description || 'Payment failed. Please try again.');
