@@ -38,6 +38,7 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
   const [placing, setPlacing] = useState(false);
   const [placeError, setPlaceError] = useState('');
   const [orderId, setOrderId] = useState(null);
+  const [placedSummary, setPlacedSummary] = useState(null);
   const [delivery, setDelivery] = useState({ name: '', phone: '', email: '', address: '', city: '', zip: '' });
   const [payMethod, setPayMethod] = useState('razorpay'); // 'razorpay' | 'cod'
   const [locLoading, setLocLoading] = useState(false);
@@ -185,6 +186,7 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
     try {
       const order = await createCodOrder(buildCheckoutPayload());
       setOrderId(order.id);
+      setPlacedSummary({ items: cart, total });
       setStep(3);
       onOrderComplete();
     } catch (e) {
@@ -207,6 +209,7 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
         resolved = true;
         setPlaceError('');
         setOrderId(id);
+        setPlacedSummary({ items: cart, total });
         setStep(3);
         onOrderComplete();
         setPlacing(false);
@@ -283,7 +286,7 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
         </Text>
         <View style={styles.orderBox}>
           <Text style={styles.orderBoxTitle}>Order Summary</Text>
-          {cart.map((item, i) => (
+          {(placedSummary?.items || []).map((item, i) => (
             <View key={i} style={styles.orderItem}>
               <Text style={styles.orderItemEmoji}>{item.emoji}</Text>
               <Text style={styles.orderItemName}>{item.name}</Text>
@@ -293,7 +296,7 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
           <View style={styles.orderDivider} />
           <View style={styles.orderItem}>
             <Text style={[styles.orderItemName, { fontWeight: '800', color: '#1C1611' }]}>Total Paid</Text>
-            <Text style={[styles.orderItemPrice, { fontWeight: '800', color: '#C4922A', fontSize: 18 }]}>₹{parseInt(total).toLocaleString('en-IN')}</Text>
+            <Text style={[styles.orderItemPrice, { fontWeight: '800', color: '#C4922A', fontSize: 18 }]}>₹{parseInt(placedSummary?.total || 0).toLocaleString('en-IN')}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.doneBtn} onPress={() => onNavigate('Home')}>

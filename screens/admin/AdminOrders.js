@@ -4,6 +4,13 @@ import { getOrders, updateOrderStatus } from '../../utils/api';
 import { notifyError } from '../../utils/notify';
 
 const STATUS_FLOW = ['Pending', 'Processing', 'Shipped', 'Delivered'];
+const PAYMENT_STATUS_DISPLAY = {
+  paid:           { label: '✓ Paid',        color: '#4CAF50' },
+  paid_simulated: { label: '✓ Paid',        color: '#4CAF50' },
+  cod_pending:    { label: 'Pay on Delivery', color: '#C4922A' },
+  pending:        { label: '⚠ Unpaid',       color: '#e63946' },
+};
+const paymentStatusDisplay = (status) => PAYMENT_STATUS_DISPLAY[status] || { label: status, color: '#999' };
 const STATUS_COLORS = {
   Pending:    { bg: '#eee',    text: '#999',    border: '#ddd' },
   Processing: { bg: '#FDF3E3', text: '#C4922A', border: '#F0E6CC' },
@@ -111,6 +118,9 @@ export default function AdminOrders({ canManage = true }) {
             <View style={styles.orderBottom}>
               <Text style={styles.orderDate}>📅 {o.date}</Text>
               <Text style={styles.orderPayment}>💳 {o.payment}</Text>
+              <Text style={[styles.orderPayment, { color: paymentStatusDisplay(o.paymentStatus).color, fontWeight: '700' }]}>
+                {paymentStatusDisplay(o.paymentStatus).label}
+              </Text>
               <Text style={styles.orderTotal}>{o.totalLabel}</Text>
             </View>
           </TouchableOpacity>
@@ -166,6 +176,9 @@ export default function AdminOrders({ canManage = true }) {
                   <View style={styles.detailSection}>
                     <Text style={styles.detailSectionTitle}>Payment</Text>
                     <Text style={styles.detailRow}>💳 {selected.payment}  ·  📅 {selected.date}</Text>
+                    <Text style={[styles.detailRow, { color: paymentStatusDisplay(selected.paymentStatus).color, fontWeight: '700' }]}>
+                      {paymentStatusDisplay(selected.paymentStatus).label}
+                    </Text>
                   </View>
 
                   <View style={styles.modalActions}>

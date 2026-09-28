@@ -1,9 +1,12 @@
 import { supabaseAdmin } from './supabaseAdmin.ts';
 import { sendOrderEmails } from './email.ts';
 
-// Idempotent: safe to call twice for the same razorpay_order_id (once from
-// the client right after payment, once from Razorpay's webhook) — only the
-// first call actually creates the order and sends emails.
+// Idempotent: safe to call concurrently for the same razorpay_order_id
+// (the client's verify call and Razorpay's webhook both call this for the
+// same payment, often within milliseconds of each other). The uniqueness
+// of orders.razorpay_order_id — not a read-then-write check — is what
+// actually prevents duplicates: whichever insert loses the race gets a
+// conflict error and just fetches the row the winner created.
 export async function completeOrderForPayment(razorpayOrderId: string) {
   const { data: pending, error: findErr } = await supabaseAdmin
     .from('pending_payments')
@@ -13,13 +16,6 @@ export async function completeOrderForPayment(razorpayOrderId: string) {
 
   if (findErr || !pending) {
     throw new Error(`No pending payment found for razorpay_order_id ${razorpayOrderId}`);
-  }
-
-  if (pending.status === 'paid' && pending.order_id) {
-    // Already processed by the other path (client or webhook) — return the
-    // existing order instead of creating a duplicate.
-    const { data: existing } = await supabaseAdmin.from('orders').select('*').eq('id', pending.order_id).single();
-    return existing;
   }
 
   const { data: order, error: insertErr } = await supabaseAdmin
@@ -39,11 +35,24 @@ export async function completeOrderForPayment(razorpayOrderId: string) {
       payment_method: 'phonepe',
       payment_status: 'paid',
       status: 'Pending',
+      razorpay_order_id: razorpayOrderId,
     })
     .select()
     .single();
 
-  if (insertErr) throw insertErr;
+  if (insertErr) {
+    if (insertErr.code === '23505') {
+      // Lost the race — the other caller already created this order.
+      const { data: existing, error: fetchErr } = await supabaseAdmin
+        .from('orders')
+        .select('*')
+        .eq('razorpay_order_id', razorpayOrderId)
+        .single();
+      if (fetchErr) throw fetchErr;
+      return existing;
+    }
+    throw insertErr;
+  }
 
   await supabaseAdmin
     .from('pending_payments')
