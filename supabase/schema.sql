@@ -285,6 +285,8 @@ create policy "orders_select_own_or_admin" on public.orders
   for select using (auth.uid() = user_id or public.is_admin());
 create policy "orders_admin_update" on public.orders
   for update using (public.is_manager_or_above()) with check (public.is_manager_or_above());
+create policy "orders_admin_delete" on public.orders
+  for delete using (public.is_manager_or_above());
 
 create policy "discount_codes_select_active_or_admin" on public.discount_codes
   for select using (active = true or public.is_admin());

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, ActivityIndicator } from 'react-native';
-import { getOrders, updateOrderStatus } from '../../utils/api';
+import { getOrders, updateOrderStatus, deleteOrder } from '../../utils/api';
 import { notifyError } from '../../utils/notify';
 
 const STATUS_FLOW = ['Pending', 'Processing', 'Shipped', 'Delivered'];
@@ -24,6 +24,8 @@ export default function AdminOrders({ canManage = true }) {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('All');
   const [selected, setSelected] = useState(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const loadOrders = useCallback(() => {
     return getOrders().then(setOrders).catch(notifyError);
@@ -54,6 +56,25 @@ export default function AdminOrders({ canManage = true }) {
       setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status: 'Cancelled' } : o));
       setSelected(null);
     } catch (e) { notifyError(e); }
+  };
+
+  const closeModal = () => {
+    setSelected(null);
+    setConfirmingDelete(false);
+  };
+
+  const handleDeleteOrder = async (id) => {
+    if (!confirmingDelete) { setConfirmingDelete(true); return; }
+    setDeleting(true);
+    try {
+      await deleteOrder(id);
+      setOrders((prev) => prev.filter((o) => o.id !== id));
+      closeModal();
+    } catch (e) {
+      notifyError(e);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const counts = STATUS_FLOW.reduce((acc, s) => {
@@ -138,7 +159,7 @@ export default function AdminOrders({ canManage = true }) {
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>Order {selected.id}</Text>
-                    <TouchableOpacity onPress={() => setSelected(null)}>
+                    <TouchableOpacity onPress={closeModal}>
                       <Text style={styles.closeBtn}>✕</Text>
                     </TouchableOpacity>
                   </View>
@@ -194,7 +215,21 @@ export default function AdminOrders({ canManage = true }) {
                         <Text style={styles.cancelBtnText}>Cancel Order</Text>
                       </TouchableOpacity>
                     )}
-                    <TouchableOpacity style={styles.closeModalBtn} onPress={() => setSelected(null)}>
+                    {canManage && (
+                      <TouchableOpacity
+                        style={[styles.deleteBtn, deleting && { opacity: 0.6 }]}
+                        disabled={deleting}
+                        onPress={() => handleDeleteOrder(selected.id)}
+                      >
+                        {deleting
+                          ? <ActivityIndicator size="small" color="#e63946" />
+                          : <Text style={styles.deleteBtnText}>
+                              {confirmingDelete ? 'Tap again to permanently delete' : 'Delete Order'}
+                            </Text>
+                        }
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.closeModalBtn} onPress={closeModal}>
                       <Text style={styles.closeModalText}>Close</Text>
                     </TouchableOpacity>
                   </View>
@@ -259,6 +294,8 @@ const styles = StyleSheet.create({
   advanceBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelBtn: { borderWidth: 1, borderColor: '#e63946', paddingVertical: 11, borderRadius: 20, alignItems: 'center' },
   cancelBtnText: { color: '#e63946', fontWeight: '700' },
+  deleteBtn: { backgroundColor: '#fff0f0', borderWidth: 1, borderColor: '#e63946', paddingVertical: 11, borderRadius: 20, alignItems: 'center' },
+  deleteBtnText: { color: '#e63946', fontWeight: '700' },
   closeModalBtn: { paddingVertical: 11, borderRadius: 20, alignItems: 'center', backgroundColor: '#F0E6CC' },
   closeModalText: { color: '#888', fontWeight: '700' },
 });

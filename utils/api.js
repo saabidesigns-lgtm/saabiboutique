@@ -240,6 +240,12 @@ export const updateOrderStatus = async (displayId, status) => {
   if (error) throw error;
 };
 
+export const deleteOrder = async (displayId) => {
+  const id = parseInt(String(displayId).replace('#', ''), 10);
+  const { error } = await supabase.from('orders').delete().eq('id', id);
+  if (error) throw error;
+};
+
 // ── Customers (admin) ────────────────────────────────────────────────────
 
 export const getCustomers = async () => {
