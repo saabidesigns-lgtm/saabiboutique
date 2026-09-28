@@ -201,6 +201,17 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
       await loadRazorpayScript();
       const { razorpayOrderId, keyId, amount, currency } = await createRazorpayOrder(buildCheckoutPayload());
 
+      let resolved = false;
+      const finalizeSuccess = (id) => {
+        if (resolved) return;
+        resolved = true;
+        setPlaceError('');
+        setOrderId(id);
+        setStep(3);
+        onOrderComplete();
+        setPlacing(false);
+      };
+
       const rzp = new window.Razorpay({
         key: keyId,
         amount,
@@ -221,31 +232,38 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
               razorpayPaymentId: response.razorpay_payment_id,
               razorpaySignature: response.razorpay_signature,
             });
-            setOrderId(order.id);
-            setStep(3);
-            onOrderComplete();
+            finalizeSuccess(order.id);
           } catch (e) {
-            setPlaceError(e.message || 'Payment succeeded but we could not confirm your order. Please contact us with your payment ID.');
-          } finally {
-            setPlacing(false);
+            if (!resolved) { resolved = true; setPlaceError(e.message || 'Payment succeeded but we could not confirm your order. Please contact us with your payment ID.'); setPlacing(false); }
           }
         },
         modal: {
-          ondismiss: () => setPlacing(false),
+          // Fires when the checkout closes for any reason that isn't a normal
+          // success — including Razorpay's own internal error screens, which
+          // don't always trigger payment.failed. One quick check (no waiting):
+          // if the webhook already confirmed payment, show success anyway;
+          // otherwise this was a genuine cancel, so just go back quietly.
+          ondismiss: async () => {
+            if (resolved) return;
+            try {
+              const result = await checkPaymentStatus(razorpayOrderId);
+              if (result.status === 'paid') { finalizeSuccess(result.orderId); return; }
+            } catch {}
+            if (!resolved) setPlacing(false);
+          },
         },
       });
       rzp.on('payment.failed', async (resp) => {
+        if (resolved) return;
         setPlaceError('Confirming your payment status, please wait...');
         const result = await pollForPaidStatus(razorpayOrderId);
         if (result && result.status === 'paid') {
-          setPlaceError('');
-          setOrderId(result.orderId);
-          setStep(3);
-          onOrderComplete();
-        } else {
+          finalizeSuccess(result.orderId);
+        } else if (!resolved) {
+          resolved = true;
           setPlaceError(resp?.error?.description || 'Payment failed. Please try again.');
+          setPlacing(false);
         }
-        setPlacing(false);
       });
       rzp.open();
     } catch (e) {
