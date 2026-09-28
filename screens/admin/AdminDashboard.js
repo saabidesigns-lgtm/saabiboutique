@@ -34,7 +34,8 @@ export default function AdminDashboard({ products }) {
     );
   }
 
-  const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
+  const activeOrders = orders.filter((o) => o.status !== 'Cancelled');
+  const totalRevenue = activeOrders.reduce((sum, o) => sum + o.total, 0);
 
   const stats = [
     { label: 'Total Orders',  value: String(orders.length),                      icon: '📦', color: '#FDF3E3', border: '#C4922A' },
@@ -53,7 +54,7 @@ export default function AdminDashboard({ products }) {
   }));
 
   const productStats = {};
-  orders.forEach((o) => {
+  activeOrders.forEach((o) => {
     (o.items || []).forEach((item) => {
       if (!productStats[item.name]) productStats[item.name] = { sold: 0, revenue: 0 };
       productStats[item.name].sold += item.qty || 1;
