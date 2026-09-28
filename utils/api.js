@@ -204,6 +204,14 @@ export const verifyRazorpayPayment = async ({ razorpayOrderId, razorpayPaymentId
   return data.order;
 };
 
+export const checkPaymentStatus = async (razorpayOrderId) => {
+  const { data, error } = await supabase.functions.invoke('check-payment-status', {
+    body: { razorpayOrderId },
+  });
+  if (error) throw error;
+  return data; // { status: 'created' | 'paid' | 'failed' | 'unknown', orderId? }
+};
+
 export const getOrders = async () => {
   const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
   if (error) throw error;

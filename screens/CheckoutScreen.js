@@ -1,7 +1,22 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import { createCodOrder, createRazorpayOrder, verifyRazorpayPayment } from '../utils/api';
+import { createCodOrder, createRazorpayOrder, verifyRazorpayPayment, checkPaymentStatus } from '../utils/api';
+
+// Razorpay's UPI flow can report payment.failed on the client (e.g. the
+// widget timing out waiting for the UPI app/bank) even though the payment
+// actually completes a moment later and our webhook records it as paid.
+// Before treating a reported failure as final, double-check a few times.
+const pollForPaidStatus = async (razorpayOrderId, { attempts = 6, intervalMs = 2500 } = {}) => {
+  for (let i = 0; i < attempts; i++) {
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    try {
+      const result = await checkPaymentStatus(razorpayOrderId);
+      if (result.status === 'paid') return result;
+    } catch {}
+  }
+  return null;
+};
 
 let razorpayScriptPromise = null;
 const loadRazorpayScript = () => {
@@ -219,8 +234,17 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
           ondismiss: () => setPlacing(false),
         },
       });
-      rzp.on('payment.failed', (resp) => {
-        setPlaceError(resp?.error?.description || 'Payment failed. Please try again.');
+      rzp.on('payment.failed', async (resp) => {
+        setPlaceError('Confirming your payment status, please wait...');
+        const result = await pollForPaidStatus(razorpayOrderId);
+        if (result && result.status === 'paid') {
+          setPlaceError('');
+          setOrderId(result.orderId);
+          setStep(3);
+          onOrderComplete();
+        } else {
+          setPlaceError(resp?.error?.description || 'Payment failed. Please try again.');
+        }
         setPlacing(false);
       });
       rzp.open();
