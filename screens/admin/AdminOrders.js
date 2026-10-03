@@ -135,6 +135,7 @@ export default function AdminOrders({ canManage = true }) {
               </View>
             </View>
             <Text style={styles.orderCustomer}>👤 {o.customer}</Text>
+            {o.email ? <Text style={styles.orderEmail}>✉️ {o.email}</Text> : null}
             <Text style={styles.orderItems}>{o.itemsLabel.join(', ')}</Text>
             <View style={styles.orderBottom}>
               <Text style={styles.orderDate}>📅 {o.date}</Text>
@@ -185,6 +186,7 @@ export default function AdminOrders({ canManage = true }) {
                     <Text style={styles.detailSectionTitle}>Customer</Text>
                     <Text style={styles.detailRow}>👤 {selected.customer}</Text>
                     <Text style={styles.detailRow}>📞 {selected.phone}</Text>
+                    {selected.email ? <Text style={styles.detailRow}>✉️ {selected.email}</Text> : null}
                     <Text style={styles.detailRow}>📍 {selected.address}</Text>
                   </View>
 
@@ -267,6 +269,7 @@ const styles = StyleSheet.create({
   statusBadge: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   statusText: { fontSize: 12, fontWeight: '700' },
   orderCustomer: { fontSize: 14, fontWeight: '700', color: '#1C1611', marginBottom: 4 },
+  orderEmail: { fontSize: 12, color: '#999', marginBottom: 4 },
   orderItems: { fontSize: 13, color: '#666', marginBottom: 8 },
   orderBottom: { flexDirection: 'row', gap: 12, alignItems: 'center' },
   orderDate: { fontSize: 12, color: '#aaa' },

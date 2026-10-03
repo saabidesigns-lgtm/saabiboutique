@@ -220,6 +220,7 @@ export const getOrders = async () => {
     rawId: row.id,
     customer: row.customer_name,
     phone: row.phone,
+    email: row.email || '',
     address: row.address,
     items: row.items || [],
     itemsLabel: (row.items || []).map((i) => `${i.name} × ${i.qty}`),
