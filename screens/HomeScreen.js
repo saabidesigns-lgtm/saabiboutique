@@ -9,6 +9,30 @@ const FILTER_EMOJI = {
   'Salwar Suits': '🧵',
 };
 
+const SORT_OPTIONS = [
+  { id: 'newest',     label: 'Newest' },
+  { id: 'price_low',  label: 'Price: Low to High' },
+  { id: 'price_high', label: 'Price: High to Low' },
+  { id: 'name_az',    label: 'Name: A-Z' },
+];
+
+const PRICE_RANGES = [
+  { id: 'all',        label: 'All Prices', min: 0,    max: Infinity },
+  { id: '0-999',      label: 'Under ₹999', min: 0,    max: 999 },
+  { id: '999-1999',   label: '₹999 – ₹1999', min: 999, max: 1999 },
+  { id: '1999-2999',  label: '₹1999 – ₹2999', min: 1999, max: 2999 },
+  { id: '3000+',      label: 'Above ₹3000', min: 3000, max: Infinity },
+];
+
+const SIZE_ORDER = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', 'Free Size'];
+const sortSizes = (sizes) => [...sizes].sort((a, b) => {
+  const ia = SIZE_ORDER.indexOf(a), ib = SIZE_ORDER.indexOf(b);
+  if (ia === -1 && ib === -1) return a.localeCompare(b);
+  if (ia === -1) return 1;
+  if (ib === -1) return -1;
+  return ia - ib;
+});
+
 export default function HomeScreen({ onAddToCart, products = [], onProductPress, homeContent }) {
   const { width } = useWindowDimensions();
   const isWide  = width >= 768;
@@ -88,6 +112,11 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
   const scrollRef = useRef(null);
   const shopY = useRef(0);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [sortBy, setSortBy]             = useState('newest');
+  const [filtersOpen, setFiltersOpen]   = useState(false);
+  const [priceRange, setPriceRange]     = useState('all');
+  const [selectedSizes, setSelectedSizes] = useState([]);
+  const [onSaleOnly, setOnSaleOnly]     = useState(false);
 
   const categories = [...new Set(visible.map((p) => p.category))];
   const dynamicFilters = [
@@ -95,9 +124,40 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
     ...categories.map((c) => ({ label: c, emoji: FILTER_EMOJI[c] || '🏷️' })),
   ];
 
-  const filteredProducts = activeFilter === 'All'
+  const categoryFiltered = activeFilter === 'All'
     ? visible
     : visible.filter((p) => p.category === activeFilter);
+
+  // Reset size selection when switching category — a size picked for one
+  // category can silently zero-out results in another without this.
+  useEffect(() => { setSelectedSizes([]); }, [activeFilter]);
+
+  const availableSizes = sortSizes([...new Set(categoryFiltered.flatMap((p) => p.sizes || []))]);
+
+  const activePriceRange = PRICE_RANGES.find((r) => r.id === priceRange) || PRICE_RANGES[0];
+  const isOnSale = (p) => p.badge === 'SALE' || (p.oldPrice && parseFloat(p.oldPrice) > parseFloat(p.price));
+
+  const filteredProducts = categoryFiltered
+    .filter((p) => {
+      const price = parseFloat(p.price) || 0;
+      return price >= activePriceRange.min && price <= activePriceRange.max;
+    })
+    .filter((p) => selectedSizes.length === 0 || (p.sizes || []).some((s) => selectedSizes.includes(s)))
+    .filter((p) => !onSaleOnly || isOnSale(p));
+
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case 'price_low':  return (parseFloat(a.price) || 0) - (parseFloat(b.price) || 0);
+      case 'price_high': return (parseFloat(b.price) || 0) - (parseFloat(a.price) || 0);
+      case 'name_az':    return a.name.localeCompare(b.name);
+      case 'newest':
+      default:           return b.id - a.id;
+    }
+  });
+
+  const toggleSize = (s) => setSelectedSizes((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+  const clearFilters = () => { setPriceRange('all'); setSelectedSizes([]); setOnSaleOnly(false); };
+  const activeFilterCount = (priceRange !== 'all' ? 1 : 0) + selectedSizes.length + (onSaleOnly ? 1 : 0);
 
   const goToShop = (category = null) => {
     setActiveFilter(category || 'All');
@@ -203,20 +263,105 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
           ))}
         </ScrollView>
 
+        {/* Sort + Filters */}
+        <View style={styles.sortFilterRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortChips}>
+            <Text style={styles.sortLabel}>Sort:</Text>
+            {SORT_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.id}
+                style={[styles.sortChip, sortBy === opt.id && styles.sortChipActive]}
+                onPress={() => setSortBy(opt.id)}
+              >
+                <Text style={[styles.sortChipText, sortBy === opt.id && styles.sortChipTextActive]}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <TouchableOpacity
+            style={[styles.filtersToggleBtn, filtersOpen && styles.filtersToggleBtnActive]}
+            onPress={() => setFiltersOpen((v) => !v)}
+          >
+            <Text style={[styles.filtersToggleText, filtersOpen && styles.filtersToggleTextActive]}>
+              ⚙️ Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {filtersOpen && (
+          <View style={styles.filterPanel}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterGroupTitle}>Price</Text>
+              <View style={styles.filterGroupChips}>
+                {PRICE_RANGES.map((r) => (
+                  <TouchableOpacity
+                    key={r.id}
+                    style={[styles.miniChip, priceRange === r.id && styles.miniChipActive]}
+                    onPress={() => setPriceRange(r.id)}
+                  >
+                    <Text style={[styles.miniChipText, priceRange === r.id && styles.miniChipTextActive]}>{r.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {availableSizes.length > 0 && (
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterGroupTitle}>Size</Text>
+                <View style={styles.filterGroupChips}>
+                  {availableSizes.map((s) => {
+                    const active = selectedSizes.includes(s);
+                    return (
+                      <TouchableOpacity
+                        key={s}
+                        style={[styles.miniChip, active && styles.miniChipActive]}
+                        onPress={() => toggleSize(s)}
+                      >
+                        <Text style={[styles.miniChipText, active && styles.miniChipTextActive]}>{s}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            <View style={styles.filterGroup}>
+              <TouchableOpacity
+                style={[styles.miniChip, onSaleOnly && styles.miniChipActive]}
+                onPress={() => setOnSaleOnly((v) => !v)}
+              >
+                <Text style={[styles.miniChipText, onSaleOnly && styles.miniChipTextActive]}>🏷️ On Sale Only</Text>
+              </TouchableOpacity>
+            </View>
+
+            {activeFilterCount > 0 && (
+              <TouchableOpacity onPress={clearFilters} style={styles.clearFiltersBtn}>
+                <Text style={styles.clearFiltersText}>Clear all filters</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         <Text style={styles.resultCount}>
-          {filteredProducts.length} {activeFilter === 'All' ? 'products' : activeFilter} found
+          {sortedProducts.length} {activeFilter === 'All' ? 'products' : activeFilter} found
         </Text>
 
         <View style={styles.grid}>
-          {filteredProducts.map((p) => (
+          {sortedProducts.map((p) => (
             <ProductCard key={p.id} product={p} onAddToCart={onAddToCart} onProductPress={onProductPress} />
           ))}
         </View>
 
-        {filteredProducts.length === 0 && (
+        {sortedProducts.length === 0 && (
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🛍️</Text>
-            <Text style={styles.emptyText}>No products in this category yet.</Text>
+            <Text style={styles.emptyText}>
+              {activeFilterCount > 0 ? 'No products match your filters.' : 'No products in this category yet.'}
+            </Text>
+            {activeFilterCount > 0 && (
+              <TouchableOpacity onPress={clearFilters} style={{ marginTop: 12 }}>
+                <Text style={styles.clearFiltersText}>Clear all filters</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
@@ -359,6 +504,41 @@ const styles = StyleSheet.create({
     textAlign: 'center', fontSize: 13, color: '#999',
     paddingVertical: 14, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#F0E6CC',
   },
+
+  /* Sort + Filters */
+  sortFilterRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 10 },
+  sortChips: { alignItems: 'center', gap: 8, paddingRight: 8 },
+  sortLabel: { fontSize: 13, color: '#999', fontWeight: '600', marginRight: 2 },
+  sortChip: {
+    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16,
+    borderWidth: 1, borderColor: '#E8D5A3', backgroundColor: '#fff',
+  },
+  sortChipActive: { backgroundColor: '#1C1611', borderColor: '#1C1611' },
+  sortChipText: { fontSize: 13, color: '#555', fontWeight: '500' },
+  sortChipTextActive: { color: '#C4922A', fontWeight: '700' },
+  filtersToggleBtn: {
+    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16,
+    borderWidth: 1, borderColor: '#E8D5A3', backgroundColor: '#fff', flexShrink: 0,
+  },
+  filtersToggleBtnActive: { backgroundColor: '#C4922A', borderColor: '#C4922A' },
+  filtersToggleText: { fontSize: 13, color: '#555', fontWeight: '600' },
+  filtersToggleTextActive: { color: '#fff' },
+  filterPanel: {
+    backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#F0E6CC',
+    padding: 18, marginTop: 14, gap: 16,
+  },
+  filterGroup: { gap: 10 },
+  filterGroupTitle: { fontSize: 12, fontWeight: '700', color: '#C4922A', textTransform: 'uppercase', letterSpacing: 1 },
+  filterGroupChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  miniChip: {
+    paddingHorizontal: 13, paddingVertical: 7, borderRadius: 14,
+    borderWidth: 1, borderColor: '#E8D5A3', backgroundColor: '#FDFAF5',
+  },
+  miniChipActive: { backgroundColor: '#1C1611', borderColor: '#1C1611' },
+  miniChipText: { fontSize: 13, color: '#555', fontWeight: '500' },
+  miniChipTextActive: { color: '#C4922A', fontWeight: '700' },
+  clearFiltersBtn: { alignSelf: 'flex-start' },
+  clearFiltersText: { fontSize: 13, color: '#e63946', fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingTop: 12, gap: 4 },
   empty: { alignItems: 'center', paddingVertical: 60 },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
