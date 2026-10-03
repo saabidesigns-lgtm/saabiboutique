@@ -265,45 +265,51 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
           ))}
         </ScrollView>
 
-        {/* Sort + Filters */}
+        {/* Sort + Filters — both are plain toggle buttons that expand the
+            same kind of inline panel below, rather than one being an
+            overlay dropdown and the other a panel. Keeps the two
+            consistent and sidesteps any z-index/stacking fuss entirely. */}
         <View style={styles.toolbarRow}>
-          <View style={styles.toolbarItem}>
-            <TouchableOpacity
-              style={[styles.toolbarBtn, sortOpen && styles.toolbarBtnActive]}
-              onPress={() => { setSortOpen((v) => !v); setFiltersOpen(false); }}
-            >
-              <Text style={[styles.toolbarBtnText, sortOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
-                ↕️ {currentSortLabel}
-              </Text>
-            </TouchableOpacity>
-            {sortOpen && (
-              <View style={styles.sortDropdown}>
-                {SORT_OPTIONS.map((opt) => {
-                  const active = sortBy === opt.id;
-                  return (
-                    <TouchableOpacity
-                      key={opt.id}
-                      style={styles.sortDropdownItem}
-                      onPress={() => { setSortBy(opt.id); setSortOpen(false); }}
-                    >
-                      <Text style={[styles.sortDropdownText, active && styles.sortDropdownTextActive]}>{opt.label}</Text>
-                      {active && <Text style={styles.sortDropdownCheck}>✓</Text>}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </View>
+          <TouchableOpacity
+            style={[styles.toolbarItem, styles.toolbarBtn, sortOpen && styles.toolbarBtnActive]}
+            onPress={() => { setSortOpen((v) => !v); setFiltersOpen(false); }}
+          >
+            <Text style={[styles.toolbarBtnText, sortOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
+              ↕️ {currentSortLabel}
+            </Text>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.toolbarItem, styles.toolbarBtn, filtersOpen && styles.toolbarBtnActive]}
             onPress={() => { setFiltersOpen((v) => !v); setSortOpen(false); }}
           >
             <Text style={[styles.toolbarBtnText, filtersOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
-              ⚙️ Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              🔽 Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {sortOpen && (
+          <View style={styles.filterPanel}>
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterGroupTitle}>Sort By</Text>
+              <View style={styles.filterGroupChips}>
+                {SORT_OPTIONS.map((opt) => {
+                  const active = sortBy === opt.id;
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={[styles.miniChip, active && styles.miniChipActive]}
+                      onPress={() => setSortBy(opt.id)}
+                    >
+                      <Text style={[styles.miniChipText, active && styles.miniChipTextActive]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        )}
 
         {filtersOpen && (
           <View style={styles.filterPanel}>
@@ -527,16 +533,11 @@ const styles = StyleSheet.create({
   },
 
   /* Sort + Filters — two equal-width buttons side by side, no horizontal
-     scroll, so neither one can get squeezed off-screen on a narrow phone. */
-  // zIndex here (not just on the dropdown itself) is what actually lifts the
-  // dropdown above the product grid below it — without it, the grid (a later
-  // sibling further down the flex tree) paints on top regardless of the
-  // dropdown's own z-index, since React Native Web treats flex items with an
-  // explicit z-index as their own stacking context, compared against their
-  // siblings — not something a non-positioned descendant's z-index alone
-  // can reach past.
-  toolbarRow: { flexDirection: 'row', marginTop: 16, gap: 10, zIndex: 5 },
-  toolbarItem: { flex: 1, position: 'relative' },
+     scroll, so neither one can get squeezed off-screen on a narrow phone.
+     Both expand the same kind of inline panel below (see filterPanel) —
+     no overlay/dropdown, so there's no z-index stacking to fight with. */
+  toolbarRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
+  toolbarItem: { flex: 1 },
   toolbarBtn: {
     paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14,
     borderWidth: 1, borderColor: '#E8D5A3', backgroundColor: '#fff', alignItems: 'center',
@@ -544,20 +545,6 @@ const styles = StyleSheet.create({
   toolbarBtnActive: { backgroundColor: '#C4922A', borderColor: '#C4922A' },
   toolbarBtnText: { fontSize: 13, color: '#555', fontWeight: '600' },
   toolbarBtnTextActive: { color: '#fff' },
-  sortDropdown: {
-    position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6,
-    backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E8D5A3',
-    shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
-    elevation: 6, overflow: 'hidden', zIndex: 20,
-  },
-  sortDropdownItem: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: '#F5EDD8',
-  },
-  sortDropdownText: { fontSize: 13, color: '#555', fontWeight: '500' },
-  sortDropdownTextActive: { color: '#C4922A', fontWeight: '700' },
-  sortDropdownCheck: { color: '#C4922A', fontWeight: '700' },
   filterPanel: {
     backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#F0E6CC',
     padding: 18, marginTop: 14, gap: 16,
