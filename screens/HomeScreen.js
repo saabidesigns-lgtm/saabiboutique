@@ -531,14 +531,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#F0E6CC',
   },
 
-  /* Sort + Filters — two equal-width buttons side by side, no horizontal
-     scroll, so neither one can get squeezed off-screen on a narrow phone.
+  /* Sort + Filters — compact chips sized to their own content (like the
+     category filter chips above them), not stretched to fill the row.
      Both expand the same kind of inline panel below (see filterPanel) —
      no overlay/dropdown, so there's no z-index stacking to fight with. */
   toolbarRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
-  toolbarItem: { flex: 1 },
+  toolbarItem: {},
   toolbarBtn: {
-    paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
     borderWidth: 1, borderColor: '#E8D5A3', backgroundColor: '#fff', alignItems: 'center',
   },
   toolbarBtnActive: { backgroundColor: '#C4922A', borderColor: '#C4922A' },
