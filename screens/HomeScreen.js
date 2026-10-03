@@ -274,7 +274,7 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
             onPress={() => { setSortOpen((v) => !v); setFiltersOpen(false); }}
           >
             <Text style={[styles.toolbarBtnText, sortOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
-              Sort By {sortOpen ? '▴' : '▾'}
+              ⇅  Sort By  {sortOpen ? '▴' : '▾'}
             </Text>
           </TouchableOpacity>
 
@@ -283,7 +283,7 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
             onPress={() => { setFiltersOpen((v) => !v); setSortOpen(false); }}
           >
             <Text style={[styles.toolbarBtnText, filtersOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
-              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''} {filtersOpen ? '▴' : '▾'}
+              ▤  Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}  {filtersOpen ? '▴' : '▾'}
             </Text>
           </TouchableOpacity>
         </View>
