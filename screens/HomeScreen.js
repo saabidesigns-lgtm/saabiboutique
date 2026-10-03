@@ -113,6 +113,7 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
   const shopY = useRef(0);
   const [activeFilter, setActiveFilter] = useState('All');
   const [sortBy, setSortBy]             = useState('newest');
+  const [sortOpen, setSortOpen]         = useState(false);
   const [filtersOpen, setFiltersOpen]   = useState(false);
   const [priceRange, setPriceRange]     = useState('all');
   const [selectedSizes, setSelectedSizes] = useState([]);
@@ -155,6 +156,7 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
     }
   });
 
+  const currentSortLabel = SORT_OPTIONS.find((o) => o.id === sortBy)?.label || 'Sort';
   const toggleSize = (s) => setSelectedSizes((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   const clearFilters = () => { setPriceRange('all'); setSelectedSizes([]); setOnSaleOnly(false); };
   const activeFilterCount = (priceRange !== 'all' ? 1 : 0) + selectedSizes.length + (onSaleOnly ? 1 : 0);
@@ -264,24 +266,40 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
         </ScrollView>
 
         {/* Sort + Filters */}
-        <View style={styles.sortFilterRow}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortChips}>
-            <Text style={styles.sortLabel}>Sort:</Text>
-            {SORT_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.id}
-                style={[styles.sortChip, sortBy === opt.id && styles.sortChipActive]}
-                onPress={() => setSortBy(opt.id)}
-              >
-                <Text style={[styles.sortChipText, sortBy === opt.id && styles.sortChipTextActive]}>{opt.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        <View style={styles.toolbarRow}>
+          <View style={styles.toolbarItem}>
+            <TouchableOpacity
+              style={[styles.toolbarBtn, sortOpen && styles.toolbarBtnActive]}
+              onPress={() => { setSortOpen((v) => !v); setFiltersOpen(false); }}
+            >
+              <Text style={[styles.toolbarBtnText, sortOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
+                ↕️ {currentSortLabel}
+              </Text>
+            </TouchableOpacity>
+            {sortOpen && (
+              <View style={styles.sortDropdown}>
+                {SORT_OPTIONS.map((opt) => {
+                  const active = sortBy === opt.id;
+                  return (
+                    <TouchableOpacity
+                      key={opt.id}
+                      style={styles.sortDropdownItem}
+                      onPress={() => { setSortBy(opt.id); setSortOpen(false); }}
+                    >
+                      <Text style={[styles.sortDropdownText, active && styles.sortDropdownTextActive]}>{opt.label}</Text>
+                      {active && <Text style={styles.sortDropdownCheck}>✓</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
           <TouchableOpacity
-            style={[styles.filtersToggleBtn, filtersOpen && styles.filtersToggleBtnActive]}
-            onPress={() => setFiltersOpen((v) => !v)}
+            style={[styles.toolbarItem, styles.toolbarBtn, filtersOpen && styles.toolbarBtnActive]}
+            onPress={() => { setFiltersOpen((v) => !v); setSortOpen(false); }}
           >
-            <Text style={[styles.filtersToggleText, filtersOpen && styles.filtersToggleTextActive]}>
+            <Text style={[styles.toolbarBtnText, filtersOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
               ⚙️ Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
             </Text>
           </TouchableOpacity>
@@ -325,12 +343,15 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
             )}
 
             <View style={styles.filterGroup}>
-              <TouchableOpacity
-                style={[styles.miniChip, onSaleOnly && styles.miniChipActive]}
-                onPress={() => setOnSaleOnly((v) => !v)}
-              >
-                <Text style={[styles.miniChipText, onSaleOnly && styles.miniChipTextActive]}>🏷️ On Sale Only</Text>
-              </TouchableOpacity>
+              <Text style={styles.filterGroupTitle}>Availability</Text>
+              <View style={styles.filterGroupChips}>
+                <TouchableOpacity
+                  style={[styles.miniChip, onSaleOnly && styles.miniChipActive]}
+                  onPress={() => setOnSaleOnly((v) => !v)}
+                >
+                  <Text style={[styles.miniChipText, onSaleOnly && styles.miniChipTextActive]}>🏷️ On Sale Only</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             {activeFilterCount > 0 && (
@@ -505,24 +526,38 @@ const styles = StyleSheet.create({
     paddingVertical: 14, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: '#F0E6CC',
   },
 
-  /* Sort + Filters */
-  sortFilterRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 10 },
-  sortChips: { alignItems: 'center', gap: 8, paddingRight: 8 },
-  sortLabel: { fontSize: 13, color: '#999', fontWeight: '600', marginRight: 2 },
-  sortChip: {
-    paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16,
-    borderWidth: 1, borderColor: '#E8D5A3', backgroundColor: '#fff',
+  /* Sort + Filters — two equal-width buttons side by side, no horizontal
+     scroll, so neither one can get squeezed off-screen on a narrow phone. */
+  // zIndex here (not just on the dropdown itself) is what actually lifts the
+  // dropdown above the product grid below it — without it, the grid (a later
+  // sibling further down the flex tree) paints on top regardless of the
+  // dropdown's own z-index, since React Native Web treats flex items with an
+  // explicit z-index as their own stacking context, compared against their
+  // siblings — not something a non-positioned descendant's z-index alone
+  // can reach past.
+  toolbarRow: { flexDirection: 'row', marginTop: 16, gap: 10, zIndex: 5 },
+  toolbarItem: { flex: 1, position: 'relative' },
+  toolbarBtn: {
+    paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14,
+    borderWidth: 1, borderColor: '#E8D5A3', backgroundColor: '#fff', alignItems: 'center',
   },
-  sortChipActive: { backgroundColor: '#1C1611', borderColor: '#1C1611' },
-  sortChipText: { fontSize: 13, color: '#555', fontWeight: '500' },
-  sortChipTextActive: { color: '#C4922A', fontWeight: '700' },
-  filtersToggleBtn: {
-    paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16,
-    borderWidth: 1, borderColor: '#E8D5A3', backgroundColor: '#fff', flexShrink: 0,
+  toolbarBtnActive: { backgroundColor: '#C4922A', borderColor: '#C4922A' },
+  toolbarBtnText: { fontSize: 13, color: '#555', fontWeight: '600' },
+  toolbarBtnTextActive: { color: '#fff' },
+  sortDropdown: {
+    position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 6,
+    backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#E8D5A3',
+    shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+    elevation: 6, overflow: 'hidden', zIndex: 20,
   },
-  filtersToggleBtnActive: { backgroundColor: '#C4922A', borderColor: '#C4922A' },
-  filtersToggleText: { fontSize: 13, color: '#555', fontWeight: '600' },
-  filtersToggleTextActive: { color: '#fff' },
+  sortDropdownItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: '#F5EDD8',
+  },
+  sortDropdownText: { fontSize: 13, color: '#555', fontWeight: '500' },
+  sortDropdownTextActive: { color: '#C4922A', fontWeight: '700' },
+  sortDropdownCheck: { color: '#C4922A', fontWeight: '700' },
   filterPanel: {
     backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#F0E6CC',
     padding: 18, marginTop: 14, gap: 16,
