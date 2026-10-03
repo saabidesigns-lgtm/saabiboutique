@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
      category filter chips above them), not stretched to fill the row.
      Both expand the same kind of inline panel below (see filterPanel) —
      no overlay/dropdown, so there's no z-index stacking to fight with. */
-  toolbarRow: { flexDirection: 'row', marginTop: 16, gap: 10 },
+  toolbarRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, gap: 10 },
   toolbarItem: {},
   toolbarBtn: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
