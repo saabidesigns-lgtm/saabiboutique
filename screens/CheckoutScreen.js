@@ -161,7 +161,16 @@ export default function CheckoutScreen({ cart, user, onNavigate, onOrderComplete
     cart.forEach((item) => {
       const key = `${item.name}__${item.selectedSize || ''}`;
       if (!itemsMap[key]) {
-        itemsMap[key] = { name: item.name, price: parseFloat(item.price) || 0, qty: 0, size: item.selectedSize || null };
+        itemsMap[key] = {
+          name: item.name,
+          price: parseFloat(item.price) || 0,
+          qty: 0,
+          size: item.selectedSize || null,
+          // Snapshotted so confirmation emails can show the product as it was
+          // bought, even if the product is later edited or deleted.
+          image: (item.images && item.images[0]) || '',
+          category: item.category || '',
+        };
       }
       itemsMap[key].qty += 1;
     });
