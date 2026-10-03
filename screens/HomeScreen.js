@@ -156,7 +156,6 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
     }
   });
 
-  const currentSortLabel = SORT_OPTIONS.find((o) => o.id === sortBy)?.label || 'Sort';
   const toggleSize = (s) => setSelectedSizes((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   const clearFilters = () => { setPriceRange('all'); setSelectedSizes([]); setOnSaleOnly(false); };
   const activeFilterCount = (priceRange !== 'all' ? 1 : 0) + selectedSizes.length + (onSaleOnly ? 1 : 0);
@@ -275,7 +274,7 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
             onPress={() => { setSortOpen((v) => !v); setFiltersOpen(false); }}
           >
             <Text style={[styles.toolbarBtnText, sortOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
-              ↕️ {currentSortLabel}
+              Sort By {sortOpen ? '▴' : '▾'}
             </Text>
           </TouchableOpacity>
 
@@ -284,7 +283,7 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
             onPress={() => { setFiltersOpen((v) => !v); setSortOpen(false); }}
           >
             <Text style={[styles.toolbarBtnText, filtersOpen && styles.toolbarBtnTextActive]} numberOfLines={1}>
-              🔽 Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''} {filtersOpen ? '▴' : '▾'}
             </Text>
           </TouchableOpacity>
         </View>
