@@ -371,7 +371,7 @@ export default function HomeScreen({ onAddToCart, products = [], onProductPress,
           {sortedProducts.length} {activeFilter === 'All' ? 'products' : activeFilter} found
         </Text>
 
-        <View style={styles.grid}>
+        <View style={[styles.grid, { justifyContent: isWide ? 'center' : 'space-between' }]}>
           {sortedProducts.map((p) => (
             <ProductCard key={p.id} product={p} onAddToCart={onAddToCart} onProductPress={onProductPress} />
           ))}
