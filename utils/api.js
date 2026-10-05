@@ -212,6 +212,17 @@ export const checkPaymentStatus = async (razorpayOrderId) => {
   return data; // { status: 'created' | 'paid' | 'failed' | 'unknown', orderId? }
 };
 
+// ── Contact form ─────────────────────────────────────────────────────────
+
+export const sendContactMessage = async ({ name, email, subject, message }) => {
+  const { data, error } = await supabase.functions.invoke('send-contact-message', {
+    body: { name, email, subject, message },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data;
+};
+
 export const getOrders = async () => {
   const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
   if (error) throw error;

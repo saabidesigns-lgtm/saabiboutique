@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
 import { DEFAULT_PAGE_CONTENT } from '../data/pageContent';
+import { sendContactMessage } from '../utils/api';
 
 const DEF = DEFAULT_PAGE_CONTENT.contact;
 
@@ -36,6 +37,27 @@ function ContactForm() {
   const [subject, setSubject] = React.useState('');
   const [message, setMessage] = React.useState('');
   const [sent,    setSent]    = React.useState(false);
+  const [sending, setSending] = React.useState(false);
+  const [error,   setError]   = React.useState('');
+
+  const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+  const handleSend = async () => {
+    if (!name.trim()) { setError('Please enter your name'); return; }
+    if (!isValidEmail(email)) { setError('Enter a valid email address'); return; }
+    if (!message.trim()) { setError('Please enter a message'); return; }
+
+    setError('');
+    setSending(true);
+    try {
+      await sendContactMessage({ name: name.trim(), email: email.trim(), subject: subject.trim(), message: message.trim() });
+      setSent(true);
+    } catch (e) {
+      setError(e.message || 'Could not send your message. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   if (sent) {
     return (
@@ -50,20 +72,24 @@ function ContactForm() {
   return (
     <View>
       <Text style={styles.formTitle}>Send us a Message</Text>
-      <TextInput style={styles.input} placeholder="Your Name" value={name} onChangeText={setName} placeholderTextColor="#bbb" />
-      <TextInput style={styles.input} placeholder="Email Address" value={email} onChangeText={setEmail} keyboardType="email-address" placeholderTextColor="#bbb" />
+      <TextInput style={styles.input} placeholder="Your Name" value={name} onChangeText={(v) => { setName(v); setError(''); }} placeholderTextColor="#bbb" />
+      <TextInput style={styles.input} placeholder="Email Address" value={email} onChangeText={(v) => { setEmail(v); setError(''); }} keyboardType="email-address" autoCapitalize="none" placeholderTextColor="#bbb" />
       <TextInput style={styles.input} placeholder="Subject (e.g. Order issue, Return request)" value={subject} onChangeText={setSubject} placeholderTextColor="#bbb" />
       <TextInput
         style={[styles.input, styles.textarea]}
         placeholder="How can we help you?"
         value={message}
-        onChangeText={setMessage}
+        onChangeText={(v) => { setMessage(v); setError(''); }}
         multiline
         numberOfLines={5}
         placeholderTextColor="#bbb"
       />
-      <TouchableOpacity style={styles.sendBtn} onPress={() => { if (name && email && message) setSent(true); }}>
-        <Text style={styles.sendText}>Send Message</Text>
+      {error ? <Text style={styles.errorText}>⚠️ {error}</Text> : null}
+      <TouchableOpacity style={[styles.sendBtn, sending && { opacity: 0.6 }]} onPress={handleSend} disabled={sending}>
+        {sending
+          ? <ActivityIndicator color="#fff" size="small" />
+          : <Text style={styles.sendText}>Send Message</Text>
+        }
       </TouchableOpacity>
     </View>
   );
@@ -88,6 +114,7 @@ const styles = StyleSheet.create({
     fontSize: 15, color: '#333', marginBottom: 14, backgroundColor: '#FDFAF5',
   },
   textarea: { height: 120, textAlignVertical: 'top' },
+  errorText: { fontSize: 13, color: '#e63946', marginBottom: 10, fontWeight: '600' },
   sendBtn: { backgroundColor: '#C4922A', paddingVertical: 14, borderRadius: 24, alignItems: 'center', marginTop: 4 },
   sendText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   successBox: { alignItems: 'center', paddingVertical: 32 },
